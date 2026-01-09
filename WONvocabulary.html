@@ -1,0 +1,1125 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>내 단어장 (보안+로그인+동기화)</title>
+  <style>
+    :root{
+      --bg:#0b1020; --text:#f4f7ff; --muted:#b8c0ff;
+      --accent:#6aa9ff; --ok:#5bffb0; --danger:#ff6a6a;
+      --wordSize: 46px; --meaningSize: 26px; --exampleSize: 28px; --uiSize: 18px;
+      --radius: 22px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background: radial-gradient(1200px 700px at 20% 10%, #1a2a66 0%, var(--bg) 55%) fixed;
+      color:var(--text);
+      font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Noto Sans",system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+      -webkit-font-smoothing: antialiased;
+      padding: 18px 16px 28px;
+    }
+    .wrap{ max-width: 980px; margin: 0 auto; }
+    header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:8px 2px 12px;}
+    .title{font-size:22px;font-weight:1000;letter-spacing:-0.4px;line-height:1.15;}
+    .sub{font-size:14px;color:var(--muted);margin-top:4px;line-height:1.25;max-width:76ch;}
+    .pill{
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      padding:10px 12px;border-radius:999px;
+      font-size:var(--uiSize);
+      display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+      user-select:none;-webkit-tap-highlight-color:transparent;
+    }
+    .pill button{
+      all:unset;cursor:pointer;padding:6px 10px;border-radius:999px;
+      background: rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);
+      font-weight:950;
+    }
+    .pill button:active{transform:scale(.98);}
+
+    .panel{
+      margin-top:14px;border-radius:var(--radius);
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      padding:14px;
+    }
+    .panel h3{margin:0 0 10px 0;font-size:18px;letter-spacing:-0.4px;}
+    label{font-size:14px;color:rgba(244,247,255,.8);font-weight:950;display:block;margin-bottom:6px;}
+    input,textarea,select{
+      width:100%;
+      border-radius:14px;border:1px solid rgba(255,255,255,.16);
+      background: rgba(17,26,51,.55);
+      color:var(--text);
+      padding:14px 14px;font-size:18px;outline:none;
+    }
+    textarea{min-height:92px;resize:vertical;}
+    .grid{display:grid;grid-template-columns:1fr;gap:10px;}
+    @media (min-width: 820px){ .grid.two{grid-template-columns:1fr 1fr;} }
+
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;}
+    .btnRow{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+    .btn,.chip{
+      all:unset;cursor:pointer;
+      padding:12px 14px;border-radius:14px;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.07);
+      font-size:var(--uiSize);font-weight:1000;
+      user-select:none;-webkit-tap-highlight-color:transparent;
+    }
+    .btn.primary{background:rgba(106,169,255,.18);border-color:rgba(106,169,255,.38);}
+    .btn.ok{background:rgba(91,255,176,.14);border-color:rgba(91,255,176,.34);}
+    .btn.danger{background:rgba(255,106,106,.12);border-color:rgba(255,106,106,.34);}
+    .chip[aria-pressed="true"]{background:rgba(106,169,255,.18);border-color:rgba(106,169,255,.38);}
+    .btn:active,.chip:active{transform:scale(.99);}
+    .note{font-size:13px;color:rgba(244,247,255,.72);line-height:1.35;margin-top:10px;}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:13px;}
+
+    .cardArea{margin-top:12px;perspective:1400px;touch-action:pan-y;}
+    
+    .card{
+      position:relative;width:100%;
+      height:min(62vh,520px);min-height:420px;
+      border-radius:var(--radius);
+      background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
+      border:1px solid rgba(255,255,255,.14);
+      box-shadow:0 18px 60px rgba(0,0,0,.45);
+      overflow:hidden;
+      will-change: transform;
+    }
+    .side{
+      position:absolute;inset:0;padding:22px 20px;
+      display:flex;flex-direction:column;justify-content:center;gap:16px;
+      user-select:none;-webkit-tap-highlight-color:transparent;
+    }
+    .front{background: linear-gradient(180deg, rgba(106,169,255,.14), rgba(17,26,51,.05));}
+    .back{background: linear-gradient(180deg, rgba(91,255,176,.12), rgba(17,26,51,.05));}
+    .side.hiddenSide{display:none;}
+.hint{
+      position:absolute;top:14px;left:16px;right:16px;
+      font-size:14px;color:rgba(244,247,255,.75);
+      display:flex;justify-content:space-between;gap:10px;line-height:1.2;
+    }
+    .badge{
+      padding:6px 10px;border-radius:999px;
+      border:1px solid rgba(255,255,255,.16);
+      background:rgba(255,255,255,.06);
+      font-weight:1000;white-space:nowrap;
+    }
+    .big{text-align:center;font-weight:1100;letter-spacing:-0.7px;font-size:var(--wordSize);line-height:1.08;padding:10px 6px;word-break:keep-all;}
+    .meaning{text-align:center;font-size:var(--meaningSize);line-height:1.25;color:rgba(244,247,255,.92);padding:0 10px;min-height:40px;}
+    .meaning.hidden{visibility:hidden;}
+    .example{text-align:center;font-size:var(--exampleSize);line-height:1.25;font-weight:1100;padding:0 10px;word-break:keep-all;}
+    .controls{margin-top:14px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;}
+    .progress{font-size:var(--uiSize);font-weight:1100;color:rgba(244,247,255,.92);}
+    .stats{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:8px;}
+    .stat{padding:8px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);font-size:14px;font-weight:1000;}
+    .toast{
+      position:fixed;left:50%;bottom:16px;transform:translateX(-50%);
+      background:rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.18);
+      padding:10px 14px;border-radius:999px;font-size:14px;color:var(--text);
+      opacity:0;pointer-events:none;transition:opacity .2s ease;z-index:50;
+    }
+    .toast.show{opacity:1;}
+    details{margin-top:14px;border-radius:var(--radius);border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);padding:12px 14px;}
+    summary{cursor:pointer;font-weight:1100;font-size:18px;-webkit-tap-highlight-color:transparent;}
+    pre{white-space:pre-wrap}
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="title">내가 만드는 단어장 (보안 + 로그인 + 동기화)</div>
+      <div class="sub">
+        ✅ <b>예문(뒷면)은 “뒤집기 버튼”으로만 표시</b><br/>
+        앞면: 탭=발음 · 더블탭=뜻 표시/숨김 · 좌/우 스와이프=이전/다음(카드 뒤집힘 없음)<br/>
+        + 검색/필터 + 즐겨찾기 + 오답노트 + 자동 저장 + <b>Firebase(구글/애플 로그인) 기반 실시간 동기화</b>
+      </div>
+    </div>
+    <div class="pill">
+      <span style="font-weight:1100;">음성</span>
+      <button id="btnStop">중지</button>
+      <button id="btnSyncNow" title="수동 업로드">동기화</button>
+    </div>
+  </header>
+
+  <section class="panel">
+    <h3>로그인</h3>
+    <div class="row">
+      <div class="btnRow">
+        <button class="btn primary" id="btnLoginGoogle">Google로 로그인</button>
+        <button class="btn primary" id="btnLoginApple">Apple로 로그인</button>
+        <button class="btn" id="btnLogout">로그아웃</button>
+      </div>
+      <div class="mono" id="whoami">로그인: (아직)</div>
+    </div>
+    <div class="note">
+      ⚠️ Apple 로그인은 Firebase에서 Apple provider 활성화 + Apple Developer OAuth 설정이 필요해(아래 가이드 참고).
+    </div>
+  </section>
+
+  <section class="panel">
+    <h3>검색 / 필터</h3>
+    <div class="grid two">
+      <div>
+        <label for="searchBox">검색 (단어/뜻/예문)</label>
+        <input id="searchBox" placeholder="예: yield / 공정 / improved ..." autocomplete="off" />
+      </div>
+      <div>
+        <label>필터</label>
+        <div class="btnRow" style="margin-top:2px;">
+          <button class="chip" id="fAll" aria-pressed="true">전체</button>
+          <button class="chip" id="fFav" aria-pressed="false">즐겨찾기</button>
+          <button class="chip" id="fWrong" aria-pressed="false">오답노트</button>
+          <button class="chip" id="fDue" aria-pressed="false">복습필요</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cardArea" aria-label="단어 카드 영역">
+    <div id="card" class="card" aria-live="polite">
+      <div class="side front" id="frontSide">
+        <div class="hint">
+          <span class="badge">앞면</span>
+          <span class="badge">탭: 발음 · 더블탭: 뜻</span>
+        </div>
+        <div class="big" id="wordText">단어를 추가해줘</div>
+        <div class="meaning hidden" id="meaningText">뜻</div>
+
+        <div class="stats">
+          <span class="stat" id="sFav">☆ 즐겨찾기: -</span>
+          <span class="stat" id="sWrong">오답: -</span>
+          <span class="stat" id="sDue">복습: -</span>
+          <span class="stat" id="sSync">동기화: OFF</span>
+        </div>
+
+        <div class="note" style="text-align:center;margin-top:6px;">
+          (앞면 탭=단어 읽기 / 빠르게 2번 탭=뜻 표시)
+        </div>
+      </div>
+
+      <div class="side back hiddenSide" id="backSide">
+        <div class="hint">
+          <span class="badge">뒷면</span>
+          <span class="badge">탭: 예문 읽기</span>
+        </div>
+        <div class="example" id="exampleText">예문을 추가해줘</div>
+        <div class="note" style="text-align:center;margin-top:6px;">
+          (뒷면 예문 탭=문장 읽기)
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="btnRow">
+        <button class="btn" id="btnPrev">← 이전</button>
+        <button class="btn primary" id="btnFlip">뒤집기</button>
+        <button class="btn" id="btnNext">다음 →</button>
+      </div>
+      <div class="btnRow">
+        <button class="btn" id="btnToggleFav">☆ 즐겨찾기</button>
+        <button class="btn danger" id="btnMarkWrong">틀림</button>
+        <button class="btn ok" id="btnMarkRight">정답 처리</button>
+        <div class="progress" id="progress">0 / 0</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h3>단어 추가 / 편집</h3>
+    <div class="grid">
+      <div>
+        <label for="inWord">단어</label>
+        <input id="inWord" placeholder="예: yield / 产量 / 알고리즘" autocomplete="off" />
+      </div>
+      <div>
+        <label for="inMeaning">뜻(한글)</label>
+        <input id="inMeaning" placeholder="예: 수율, 생산량..." autocomplete="off" />
+      </div>
+      <div>
+        <label for="inExample">예문</label>
+        <textarea id="inExample" placeholder="예: The yield improved after process tuning."></textarea>
+      </div>
+      <div>
+        <label for="inLang">읽기 언어(TTS)</label>
+        <select id="inLang">
+          <option value="en-US">영어 (en-US)</option>
+          <option value="ko-KR">한국어 (ko-KR)</option>
+          <option value="zh-CN">중국어 (zh-CN)</option>
+          <option value="ja-JP">일본어 (ja-JP)</option>
+          <option value="de-DE">독일어 (de-DE)</option>
+          <option value="fr-FR">프랑스어 (fr-FR)</option>
+          <option value="es-ES">스페인어 (es-ES)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:12px;">
+      <div class="btnRow">
+        <button class="btn primary" id="btnAdd">+ 추가</button>
+        <button class="btn" id="btnLoad">현재 카드 불러오기</button>
+        <button class="btn" id="btnUpdate">현재 카드 수정</button>
+        <button class="btn danger" id="btnDelete">현재 카드 삭제</button>
+      </div>
+      <div class="btnRow">
+        <button class="btn" id="btnExport">내보내기(JSON)</button>
+        <button class="btn" id="btnImport">가져오기(JSON)</button>
+        <button class="btn danger" id="btnReset">전체 초기화</button>
+      </div>
+    </div>
+  </section>
+
+  <details open>
+    <summary>동기화 설정 (보안 강화 + 로그인 필요)</summary>
+    <div class="note" style="margin-top:10px;">
+      ✅ 이 버전은 <b>로그인한 사용자만</b> 덱을 읽고/쓸 수 있게 설계되어 있어.<br/>
+      - 덱 생성/수정: <b>소유자(owner)만 가능</b><br/>
+      - 덱 공유: 소유자가 <b>상대 UID</b>를 readers에 추가하면 <b>읽기(실시간 보기)</b> 가능<br/>
+      <br/>
+      1) Firebase 콘솔 → 프로젝트 생성 → Firestore Database 생성<br/>
+      2) Authentication → Sign-in method → <b>Google</b>, <b>Apple</b> 활성화<br/>
+      3) 아래에 firebaseConfig(JSON) 붙여넣기<br/>
+      4) Deck Code 입력 → “동기화 연결”
+    </div>
+
+    <div class="grid two" style="margin-top:10px;">
+      <div>
+        <label for="deckCode">Deck Code (문서 ID)</label>
+        <input id="deckCode" placeholder="예: mydeck-2026" autocomplete="off" />
+      </div>
+      <div>
+        <label for="syncMode">동기화 방식</label>
+        <select id="syncMode">
+          <option value="realtime">실시간(권장)</option>
+          <option value="manual">수동(버튼 업로드)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top:10px;">
+      <div>
+        <label for="firebaseConfig">firebaseConfig(JSON)</label>
+        <textarea id="firebaseConfig" placeholder='예: { "apiKey": "...", "authDomain": "...", "projectId": "...", ... }'></textarea>
+      </div>
+    </div>
+
+    <div class="btnRow" style="margin-top:10px;">
+      <button class="btn primary" id="btnConnect">동기화 연결</button>
+      <button class="btn" id="btnDisconnect">연결 해제</button>
+      <button class="btn danger" id="btnClearSync">설정 지우기</button>
+    </div>
+
+    <div class="note mono" id="syncStatus" style="margin-top:10px;">동기화: OFF</div>
+
+    <details>
+      <summary>덱 공유(읽기 전용) - 상대 UID 추가</summary>
+      <div class="note" style="margin-top:10px;">
+        상대방이 로그인하면 화면 상단 “whoami”에 UID가 보여. 그 UID를 여기에 붙여넣고 추가해줘.
+        (보안 규칙상 <b>소유자만</b> readers를 수정 가능)
+      </div>
+      <div class="grid two" style="margin-top:10px;">
+        <div>
+          <label for="shareUid">상대 UID</label>
+          <input id="shareUid" placeholder="예: 7hG...abc" autocomplete="off" />
+        </div>
+        <div class="btnRow" style="align-self:end;">
+          <button class="btn primary" id="btnAddReader">readers에 추가</button>
+          <button class="btn danger" id="btnRemoveReader">readers에서 제거</button>
+        </div>
+      </div>
+    </details>
+
+    <details>
+      <summary>Firestore 보안 규칙(권장 샘플)</summary>
+      <div class="note" style="margin-top:10px;">
+        아래 규칙은 <b>로그인 사용자만 접근</b> 가능 + <b>owner만 write</b> + <b>readers는 read만</b> 허용.
+      </div>
+      <pre class="mono" style="background:rgba(0,0,0,.25);padding:10px;border-radius:14px;border:1px solid rgba(255,255,255,.12);">
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /vocab_decks/{deckCode} {
+      function isSignedIn() { return request.auth != null; }
+      function isOwner() { return isSignedIn() && resource.data.ownerUid == request.auth.uid; }
+      function isReader() { return isSignedIn() && (request.auth.uid in (resource.data.readers)); }
+
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow read: if isOwner() || isReader();
+      allow update, delete: if isOwner();
+    }
+  }
+}</pre>
+    </details>
+
+    <details>
+      <summary>Apple 로그인 설정 체크리스트(필수)</summary>
+      <div class="note" style="margin-top:10px;">
+        Apple은 “켜기”만으로 끝이 아니라, Apple Developer에서 OAuth 설정이 필요해.<br/>
+        - Apple Developer Program 가입 필요(유료)<br/>
+        - Service ID(웹 OAuth) 생성 + Sign in with Apple 활성화<br/>
+        - Redirect URL 등록<br/>
+        - Firebase Authentication Apple Provider에 Service ID / Team ID / Key ID / Private Key 등록<br/>
+        - Authorized domains에 사용 도메인 추가<br/><br/>
+        ※ Apple/Google 로그인은 보통 <b>https 도메인</b>에서 가장 안정적이야(예: GitHub Pages).
+      </div>
+    </details>
+  </details>
+
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
+<script>
+(() => {
+  const STORAGE_KEY = "my_vocab_deck_secure_v1";
+  const SYNC_KEY = "my_vocab_sync_secure_v1";
+  const DEVICE_ID_KEY = "my_vocab_device_id_secure_v1";
+
+  const $ = (id) => document.getElementById(id);
+
+  const card = $("card");
+  const frontSide = $("frontSide");
+  const backSide = $("backSide");
+  const wordText = $("wordText");
+  const meaningText = $("meaningText");
+  const exampleText = $("exampleText");
+  const progress = $("progress");
+  const toast = $("toast");
+
+  const sFav = $("sFav");
+  const sWrong = $("sWrong");
+  const sDue = $("sDue");
+  const sSync = $("sSync");
+
+  const searchBox = $("searchBox");
+  const fAll = $("fAll");
+  const fFav = $("fFav");
+  const fWrong = $("fWrong");
+  const fDue = $("fDue");
+
+  const inWord = $("inWord");
+  const inMeaning = $("inMeaning");
+  const inExample = $("inExample");
+  const inLang = $("inLang");
+
+  const btnPrev = $("btnPrev");
+  const btnNext = $("btnNext");
+  const btnFlip = $("btnFlip");
+  const btnStop = $("btnStop");
+  const btnSyncNow = $("btnSyncNow");
+
+  const btnToggleFav = $("btnToggleFav");
+  const btnMarkWrong = $("btnMarkWrong");
+  const btnMarkRight = $("btnMarkRight");
+
+  const btnAdd = $("btnAdd");
+  const btnLoad = $("btnLoad");
+  const btnUpdate = $("btnUpdate");
+  const btnDelete = $("btnDelete");
+  const btnReset = $("btnReset");
+  const btnExport = $("btnExport");
+  const btnImport = $("btnImport");
+
+  const btnLoginGoogle = $("btnLoginGoogle");
+  const btnLoginApple = $("btnLoginApple");
+  const btnLogout = $("btnLogout");
+  const whoami = $("whoami");
+
+  const deckCodeEl = $("deckCode");
+  const firebaseConfigEl = $("firebaseConfig");
+  const syncModeEl = $("syncMode");
+  const btnConnect = $("btnConnect");
+  const btnDisconnect = $("btnDisconnect");
+  const btnClearSync = $("btnClearSync");
+  const syncStatusEl = $("syncStatus");
+
+  const shareUidEl = $("shareUid");
+  const btnAddReader = $("btnAddReader");
+  const btnRemoveReader = $("btnRemoveReader");
+
+  function uid(){ return Math.random().toString(16).slice(2) + "-" + Date.now().toString(16); }
+
+  const SAMPLE = [
+    { id: uid(), word:"yield", meaning:"수율", example:"The yield improved after process tuning.", lang:"en-US", favorite:false, wrongCount:0, needsReview:false, createdAt:Date.now(), updatedAt:Date.now() },
+    { id: uid(), word:"工艺", meaning:"공정", example:"这道工艺可以提高良率。", lang:"zh-CN", favorite:true, wrongCount:1, needsReview:true, createdAt:Date.now(), updatedAt:Date.now() },
+  ];
+
+  let deck = loadDeck();
+  let filterMode = "all";
+  let view = [];
+  let viewPos = 0;
+
+  let lastTapAt = 0;
+  const DOUBLE_TAP_MS = 350;
+
+  let touchStartX=null, touchStartY=null;
+
+  const deviceId = getOrCreateDeviceId();
+
+  let sync = loadSyncSettings(); // {deckCode, firebaseConfigText, mode}
+  let firebaseApp=null, auth=null, firestore=null;
+  let unsub=null;
+  let suppressRemoteApply=false;
+  let lastLocalPushedAt=0;
+  let syncTimer=null;
+
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.classList.add("show");
+    setTimeout(()=>toast.classList.remove("show"), 1200);
+  }
+
+  function normalizeDeck(arr){
+    const now = Date.now();
+    return (arr||[]).map(x => ({
+      id: (x.id ?? uid()).toString(),
+      word: (x.word ?? "").toString(),
+      meaning: (x.meaning ?? "").toString(),
+      example: (x.example ?? "").toString(),
+      lang: (x.lang ?? "en-US").toString(),
+      favorite: !!x.favorite,
+      wrongCount: Number.isFinite(+x.wrongCount) ? +x.wrongCount : 0,
+      needsReview: !!x.needsReview,
+      createdAt: Number.isFinite(+x.createdAt) ? +x.createdAt : now,
+      updatedAt: Number.isFinite(+x.updatedAt) ? +x.updatedAt : now,
+    }));
+  }
+
+  function loadDeck(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw){
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(SAMPLE));
+        return [...SAMPLE];
+      }
+      const parsed = JSON.parse(raw);
+      if(Array.isArray(parsed)) return normalizeDeck(parsed);
+    }catch(e){}
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(SAMPLE));
+    return [...SAMPLE];
+  }
+
+  function saveDeck(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(deck)); }
+
+  function getOrCreateDeviceId(){
+    let id = localStorage.getItem(DEVICE_ID_KEY);
+    if(!id){ id = "dev-" + uid(); localStorage.setItem(DEVICE_ID_KEY, id); }
+    return id;
+  }
+
+  function loadSyncSettings(){
+    try{
+      const raw = localStorage.getItem(SYNC_KEY);
+      if(!raw) return { deckCode:"", firebaseConfigText:"", mode:"realtime" };
+      const p = JSON.parse(raw);
+      return {
+        deckCode: (p.deckCode ?? "").toString(),
+        firebaseConfigText: (p.firebaseConfigText ?? "").toString(),
+        mode: (p.mode==="manual") ? "manual" : "realtime",
+      };
+    }catch(e){
+      return { deckCode:"", firebaseConfigText:"", mode:"realtime" };
+    }
+  }
+
+  function saveSyncSettings(){ localStorage.setItem(SYNC_KEY, JSON.stringify(sync)); }
+
+  function currentCard(){ return (view.length===0) ? null : (view[viewPos] || null); }
+
+  function recomputeView(keepCurrent=true){
+    const curId = keepCurrent ? (currentCard()?.id ?? null) : null;
+    const q = (searchBox.value || "").trim().toLowerCase();
+
+    const pred = (c) => {
+      const hay = `${c.word} ${c.meaning} ${c.example}`.toLowerCase();
+      if(q && !hay.includes(q)) return false;
+      if(filterMode==="fav") return c.favorite;
+      if(filterMode==="wrong") return c.wrongCount > 0;
+      if(filterMode==="due") return c.needsReview === true;
+      return true;
+    };
+
+    view = deck.filter(pred);
+
+    if(view.length===0){
+      viewPos = 0;
+      render();
+      return;
+    }
+
+    if(curId){
+      const np = view.findIndex(x=>x.id===curId);
+      viewPos = (np>=0) ? np : Math.min(viewPos, view.length-1);
+    }else{
+      viewPos = Math.min(viewPos, view.length-1);
+    }
+    render();
+  }
+
+  function render(){
+    const conn = isConnected() ? `ON (${sync.mode==="manual"?"수동":"실시간"})` : "OFF";
+    sSync.textContent = `동기화: ${conn}`;
+
+    if(view.length===0){
+      wordText.textContent = "표시할 카드가 없어";
+      meaningText.textContent = "검색/필터를 바꾸거나 단어를 추가해줘";
+      exampleText.textContent = "예문";
+      progress.textContent = "0 / 0";
+      sFav.textContent = "☆ 즐겨찾기: -";
+      sWrong.textContent = "오답: -";
+      sDue.textContent = "복습: -";
+      meaningText.classList.remove("hidden");
+      backSide.classList.add("hiddenSide");
+      frontSide.classList.remove("hiddenSide");
+      return;
+    }
+
+    const c = currentCard();
+    wordText.textContent = c.word || "(단어 없음)";
+    meaningText.textContent = c.meaning || "(뜻 없음)";
+    exampleText.textContent = c.example || "(예문 없음)";
+    progress.textContent = `${viewPos + 1} / ${view.length}`;
+
+    sFav.textContent = c.favorite ? "★ 즐겨찾기: ON" : "☆ 즐겨찾기: OFF";
+    sWrong.textContent = `오답: ${c.wrongCount}`;
+    sDue.textContent = `복습: ${c.needsReview ? "필요" : "완료"}`;
+
+    meaningText.classList.add("hidden");
+  }
+
+  function speak(text, lang){
+    if(!text) return;
+    if(!("speechSynthesis" in window)){ alert("이 브라우저는 TTS(Web Speech API)를 지원하지 않아."); return; }
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = lang || "en-US";
+    const voices = window.speechSynthesis.getVoices?.() || [];
+    const match = voices.find(v => (v.lang||"").toLowerCase() === (u.lang||"").toLowerCase());
+    if(match) u.voice = match;
+    window.speechSynthesis.speak(u);
+  }
+  function stopSpeak(){ if("speechSynthesis" in window) window.speechSynthesis.cancel(); }
+
+  function toggleMeaning(){ meaningText.classList.toggle("hidden"); }
+
+  function flip(){
+    // ✅ iOS/모바일 안정: 3D backface 렌더링 문제를 피하기 위해
+    // "회전 애니메이션(0→90)" 후 면을 교체하고 "(-90→0)"로 마무리한다.
+    const backIsHidden = backSide.classList.contains("hiddenSide");
+    const goingToBack = backIsHidden; // 현재 앞면이면 뒷면으로 간다
+
+    // 애니메이션 중 중복 클릭 방지
+    if(card.dataset.animating === "1") return;
+    card.dataset.animating = "1";
+
+    const first = card.animate(
+      [{ transform:"rotateY(0deg)" }, { transform:"rotateY(90deg)" }],
+      { duration: 180, easing:"ease-in", fill:"forwards" }
+    );
+
+    first.onfinish = () => {
+      // 면 교체 (이 시점에 카드가 옆면이라 티가 거의 안 남)
+      if(goingToBack){
+        frontSide.classList.add("hiddenSide");
+        backSide.classList.remove("hiddenSide");
+      }else{
+        backSide.classList.add("hiddenSide");
+        frontSide.classList.remove("hiddenSide");
+      }
+      meaningText.classList.add("hidden");
+
+      const second = card.animate(
+        [{ transform:"rotateY(-90deg)" }, { transform:"rotateY(0deg)" }],
+        { duration: 220, easing:"ease-out", fill:"forwards" }
+      );
+      second.onfinish = () => {
+        card.style.transform = "rotateY(0deg)";
+        card.dataset.animating = "0";
+      };
+    };
+  }
+
+  function prev(){
+    if(view.length===0) return;
+    viewPos = (viewPos-1+view.length)%view.length;
+    backSide.classList.add("hiddenSide");
+    frontSide.classList.remove("hiddenSide");
+    meaningText.classList.add("hidden");
+    render();
+  }
+
+  function next(){
+    if(view.length===0) return;
+    viewPos = (viewPos+1)%view.length;
+    backSide.classList.add("hiddenSide");
+    frontSide.classList.remove("hiddenSide");
+    meaningText.classList.add("hidden");
+    render();
+  }
+
+  function findDeckIndexById(id){ return deck.findIndex(x=>x.id===id); }
+
+  function touchChanged(){
+    saveDeck();
+    recomputeView(true);
+    queueSyncPush();
+  }
+
+  function toggleFavorite(){
+    const c = currentCard(); if(!c) return;
+    const i = findDeckIndexById(c.id); if(i<0) return;
+    deck[i].favorite = !deck[i].favorite;
+    deck[i].updatedAt = Date.now();
+    touchChanged();
+    showToast(deck[i].favorite ? "즐겨찾기 ON" : "즐겨찾기 OFF");
+  }
+
+  function markWrong(){
+    const c = currentCard(); if(!c) return;
+    const i = findDeckIndexById(c.id); if(i<0) return;
+    deck[i].wrongCount = (deck[i].wrongCount||0) + 1;
+    deck[i].needsReview = true;
+    deck[i].updatedAt = Date.now();
+    touchChanged();
+    showToast("오답 +1");
+  }
+
+  function markRight(){
+    const c = currentCard(); if(!c) return;
+    const i = findDeckIndexById(c.id); if(i<0) return;
+    deck[i].needsReview = false;
+    deck[i].updatedAt = Date.now();
+    touchChanged();
+    showToast("정답 처리");
+  }
+
+  function addCard(){
+    const word = (inWord.value||"").trim();
+    const meaning = (inMeaning.value||"").trim();
+    const example = (inExample.value||"").trim();
+    const lang = (inLang.value||"en-US").trim();
+    if(!word){ showToast("단어를 입력해줘"); inWord.focus(); return; }
+
+    const now = Date.now();
+    const obj = { id: uid(), word, meaning, example, lang, favorite:false, wrongCount:0, needsReview:false, createdAt:now, updatedAt:now };
+    deck.push(obj);
+    saveDeck();
+    recomputeView(false);
+    const np = view.findIndex(x=>x.id===obj.id);
+    if(np>=0) viewPos = np;
+
+    inWord.value=""; inMeaning.value=""; inExample.value="";
+    backSide.classList.add("hiddenSide");
+    frontSide.classList.remove("hiddenSide");
+    meaningText.classList.add("hidden");
+    render();
+    showToast("추가 완료!");
+    queueSyncPush();
+  }
+
+  function loadCurrentIntoInputs(){
+    const c = currentCard(); if(!c){ showToast("불러올 카드가 없어"); return; }
+    inWord.value = c.word || "";
+    inMeaning.value = c.meaning || "";
+    inExample.value = c.example || "";
+    inLang.value = c.lang || "en-US";
+    showToast("현재 카드 불러옴");
+  }
+
+  function updateCurrentFromInputs(){
+    const c = currentCard(); if(!c){ showToast("수정할 카드가 없어"); return; }
+    const i = findDeckIndexById(c.id); if(i<0) return;
+
+    const word = (inWord.value||"").trim();
+    if(!word){ showToast("단어는 비울 수 없어"); return; }
+
+    deck[i].word = word;
+    deck[i].meaning = (inMeaning.value||"").trim();
+    deck[i].example = (inExample.value||"").trim();
+    deck[i].lang = (inLang.value||"en-US").trim();
+    deck[i].updatedAt = Date.now();
+    touchChanged();
+    showToast("수정 완료!");
+  }
+
+  function deleteCurrent(){
+    const c = currentCard(); if(!c) return;
+    if(!confirm(`"${c.word}" 카드를 삭제할까?`)) return;
+    const i = findDeckIndexById(c.id); if(i<0) return;
+    deck.splice(i,1);
+    saveDeck();
+    recomputeView(false);
+    viewPos = Math.min(viewPos, Math.max(view.length-1,0));
+    render();
+    showToast("삭제 완료");
+    queueSyncPush();
+  }
+
+  function resetAll(){
+    if(!confirm("정말 전체 단어장을 초기화할까? (되돌릴 수 없음)")) return;
+    deck = [];
+    saveDeck();
+    recomputeView(false);
+    showToast("전체 초기화 완료");
+    queueSyncPush();
+  }
+
+  async function copyToClipboard(text){
+    try{ await navigator.clipboard.writeText(text); return true; }catch(e){ return false; }
+  }
+
+  function exportJSON(){
+    const data = JSON.stringify(deck, null, 2);
+    copyToClipboard(data).then(ok => ok ? showToast("JSON 복사 완료!") : prompt("아래 내용을 복사해 저장해줘:", data));
+  }
+
+  function importJSON(){
+    const raw = prompt("가져올 JSON을 붙여넣어줘:");
+    if(!raw) return;
+    try{
+      const parsed = JSON.parse(raw);
+      if(!Array.isArray(parsed)) throw new Error("not array");
+      deck = normalizeDeck(parsed);
+      saveDeck();
+      recomputeView(false);
+      showToast("가져오기 완료!");
+      queueSyncPush();
+    }catch(e){
+      alert("JSON 형식이 올바르지 않아.");
+    }
+  }
+
+  function setFilter(mode){
+    filterMode = mode;
+    [fAll,fFav,fWrong,fDue].forEach(b => b.setAttribute("aria-pressed","false"));
+    if(mode==="all") fAll.setAttribute("aria-pressed","true");
+    if(mode==="fav") fFav.setAttribute("aria-pressed","true");
+    if(mode==="wrong") fWrong.setAttribute("aria-pressed","true");
+    if(mode==="due") fDue.setAttribute("aria-pressed","true");
+    recomputeView(true);
+  }
+
+  function setSyncStatus(t){ syncStatusEl.textContent = t; }
+
+  function canInitFirebase(){ return !!sync.firebaseConfigText; }
+
+  function ensureFirebase(){
+    if(firebaseApp) return true;
+    if(!canInitFirebase()){ showToast("firebaseConfig 필요"); return false; }
+    try{
+      const cfg = JSON.parse(sync.firebaseConfigText);
+      firebaseApp = firebase.initializeApp(cfg);
+      auth = firebase.auth(firebaseApp);
+      firestore = firebase.firestore(firebaseApp);
+      auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
+      return true;
+    }catch(e){
+      alert("firebaseConfig JSON이 올바르지 않아.");
+      return false;
+    }
+  }
+
+  function isLoggedIn(){ return !!(auth && auth.currentUser); }
+  function isConnected(){ return !!(firestore && unsub && sync.deckCode); }
+
+  function deckDoc(){ return firestore.collection("vocab_decks").doc(sync.deckCode); }
+
+  function stopListening(){
+    if(unsub){ try{unsub();}catch(e){} unsub=null; }
+  }
+
+  async function pushNow(reason="manual"){
+    if(!ensureFirebase()) return;
+    if(!isLoggedIn()){ showToast("로그인 필요"); return; }
+    if(!sync.deckCode){ showToast("Deck Code 필요"); return; }
+
+    const updatedAt = Date.now();
+    lastLocalPushedAt = updatedAt;
+
+    const uidNow = auth.currentUser.uid;
+
+    try{
+      const snap = await deckDoc().get();
+      if(!snap.exists){
+        await deckDoc().set({
+          ownerUid: uidNow,
+          readers: [],
+          deck,
+          updatedAt,
+          deviceId,
+          reason
+        }, { merge:false });
+      }else{
+        await deckDoc().set({ deck, updatedAt, deviceId, reason }, { merge:true });
+      }
+      setSyncStatus(`동기화: ON (${sync.mode==="manual"?"수동":"실시간"}) · 업로드: ${new Date(updatedAt).toLocaleString()}`);
+      showToast("동기화 완료");
+    }catch(e){
+      console.error(e);
+      setSyncStatus("동기화: ERROR (권한/네트워크/owner 아님?)");
+      showToast("동기화 실패");
+    }
+  }
+
+  function startListening(){
+    if(!ensureFirebase()) return;
+    if(!isLoggedIn()){ showToast("로그인 필요"); return; }
+    if(!sync.deckCode){ showToast("Deck Code 필요"); return; }
+
+    stopListening();
+    setSyncStatus("동기화: ON (연결 중...)");
+
+    unsub = deckDoc().onSnapshot((snap)=>{
+      if(!snap.exists){
+        setSyncStatus("동기화: ON (문서 없음 - 동기화 버튼으로 생성)");
+        return;
+      }
+      const data = snap.data() || {};
+      const remoteUpdatedAt = data.updatedAt || 0;
+      const remoteDeviceId = data.deviceId || "";
+
+      if(remoteDeviceId === deviceId && remoteUpdatedAt <= lastLocalPushedAt) return;
+
+      const remoteDeck = Array.isArray(data.deck) ? normalizeDeck(data.deck) : [];
+      const localMax = deck.reduce((m,c)=>Math.max(m, c.updatedAt||0), 0);
+
+      if(remoteUpdatedAt > localMax){
+        suppressRemoteApply = true;
+        deck = remoteDeck;
+        saveDeck();
+        recomputeView(true);
+        suppressRemoteApply = false;
+        showToast("원격 변경 반영");
+      }
+
+      setSyncStatus(`동기화: ON (${sync.mode==="manual"?"수동":"실시간"}) · 원격: ${new Date(remoteUpdatedAt).toLocaleString()}`);
+    }, (err)=>{
+      console.error(err);
+      setSyncStatus("동기화: ERROR (네트워크/권한)");
+    });
+  }
+
+  function queueSyncPush(){
+    if(suppressRemoteApply) return;
+    if(!ensureFirebase()) return;
+    if(!isLoggedIn()) return;
+    if(!sync.deckCode) return;
+    if(sync.mode !== "realtime") return;
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(()=>pushNow("auto"), 650);
+  }
+
+  async function connect(){
+    sync.deckCode = (deckCodeEl.value||"").trim();
+    sync.firebaseConfigText = (firebaseConfigEl.value||"").trim();
+    sync.mode = (syncModeEl.value==="manual") ? "manual" : "realtime";
+    saveSyncSettings();
+
+    if(!ensureFirebase()) return;
+    if(!isLoggedIn()){ showToast("먼저 로그인"); return; }
+    startListening();
+    setSyncStatus("동기화: ON (연결됨) · 필요 시 동기화 버튼으로 업로드");
+    recomputeView(true);
+  }
+
+  function disconnect(){
+    stopListening();
+    setSyncStatus("동기화: OFF");
+    showToast("연결 해제");
+    recomputeView(true);
+  }
+
+  function clearSync(){
+    if(!confirm("firebaseConfig / Deck Code 설정을 이 기기에서 지울까?")) return;
+    disconnect();
+    sync = { deckCode:"", firebaseConfigText:"", mode:"realtime" };
+    saveSyncSettings();
+    deckCodeEl.value = "";
+    firebaseConfigEl.value = "";
+    syncModeEl.value = "realtime";
+    showToast("설정 삭제");
+  }
+
+  async function addReader(){
+    if(!ensureFirebase()) return;
+    if(!isLoggedIn()) { showToast("로그인 필요"); return; }
+    const uidToAdd = (shareUidEl.value||"").trim();
+    if(!uidToAdd){ showToast("상대 UID 필요"); return; }
+    if(!sync.deckCode){ showToast("Deck Code 필요"); return; }
+
+    try{
+      await deckDoc().set({ readers: firebase.firestore.FieldValue.arrayUnion(uidToAdd) }, { merge:true });
+      showToast("readers 추가 완료");
+    }catch(e){
+      console.error(e);
+      showToast("추가 실패(권한/owner?)");
+    }
+  }
+
+  async function removeReader(){
+    if(!ensureFirebase()) return;
+    if(!isLoggedIn()) { showToast("로그인 필요"); return; }
+    const uidToRemove = (shareUidEl.value||"").trim();
+    if(!uidToRemove){ showToast("상대 UID 필요"); return; }
+    if(!sync.deckCode){ showToast("Deck Code 필요"); return; }
+
+    try{
+      await deckDoc().set({ readers: firebase.firestore.FieldValue.arrayRemove(uidToRemove) }, { merge:true });
+      showToast("readers 제거 완료");
+    }catch(e){
+      console.error(e);
+      showToast("제거 실패(권한/owner?)");
+    }
+  }
+
+  function refreshWhoami(){
+    if(!ensureFirebase()){
+      whoami.textContent = "로그인: (firebaseConfig 필요)";
+      return;
+    }
+    const u = auth.currentUser;
+    if(!u){ whoami.textContent = "로그인: (아직)"; return; }
+    whoami.textContent = `로그인: ${u.providerData?.[0]?.providerId || "user"} | UID: ${u.uid}`;
+  }
+
+  async function loginGoogle(){
+    if(!ensureFirebase()) return;
+    try{
+      const provider = new firebase.auth.GoogleAuthProvider();
+      await auth.signInWithPopup(provider);
+      showToast("Google 로그인 완료");
+    }catch(e){
+      console.error(e);
+      showToast("로그인 실패");
+    }
+  }
+
+  async function loginApple(){
+    if(!ensureFirebase()) return;
+    try{
+      const provider = new firebase.auth.OAuthProvider('apple.com');
+      provider.addScope('email');
+      provider.addScope('name');
+      await auth.signInWithPopup(provider);
+      showToast("Apple 로그인 완료");
+    }catch(e){
+      console.error(e);
+      showToast("Apple 로그인 실패(설정/도메인/팝업 제한?)");
+    }
+  }
+
+  async function logout(){
+    if(!ensureFirebase()) return;
+    try{
+      await auth.signOut();
+      disconnect();
+      showToast("로그아웃");
+    }catch(e){
+      console.error(e);
+    }
+  }
+
+  // ----- UI events -----
+  frontSide.addEventListener("click", ()=>{
+    const c = currentCard(); if(!c) return;
+    const now = Date.now();
+    const dt = now - lastTapAt;
+    lastTapAt = now;
+    if(dt > 0 && dt < DOUBLE_TAP_MS){ toggleMeaning(); return; }
+    speak(c.word, c.lang);
+  });
+
+  backSide.addEventListener("click", ()=>{
+    const c = currentCard(); if(!c) return;
+    speak(c.example || c.word, c.lang);
+  });
+
+  btnPrev.addEventListener("click", prev);
+  btnNext.addEventListener("click", next);
+  btnFlip.addEventListener("click", flip);
+  btnStop.addEventListener("click", ()=>{ stopSpeak(); showToast("중지"); });
+
+  const cardArea = document.querySelector(".cardArea");
+  cardArea.addEventListener("touchstart", (e)=>{
+    const t = e.touches[0];
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+  }, {passive:true});
+  cardArea.addEventListener("touchend", (e)=>{
+    if(touchStartX==null || touchStartY==null) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+    touchStartX=null; touchStartY=null;
+    if(Math.abs(dy) > 60) return;
+    if(dx < -70) next();
+    if(dx > 70) prev();
+  }, {passive:true});
+
+  btnToggleFav.addEventListener("click", toggleFavorite);
+  btnMarkWrong.addEventListener("click", markWrong);
+  btnMarkRight.addEventListener("click", markRight);
+
+  btnAdd.addEventListener("click", addCard);
+  btnLoad.addEventListener("click", loadCurrentIntoInputs);
+  btnUpdate.addEventListener("click", updateCurrentFromInputs);
+  btnDelete.addEventListener("click", deleteCurrent);
+  btnReset.addEventListener("click", resetAll);
+  btnExport.addEventListener("click", exportJSON);
+  btnImport.addEventListener("click", importJSON);
+
+  searchBox.addEventListener("input", ()=>recomputeView(true));
+  fAll.addEventListener("click", ()=>setFilter("all"));
+  fFav.addEventListener("click", ()=>setFilter("fav"));
+  fWrong.addEventListener("click", ()=>setFilter("wrong"));
+  fDue.addEventListener("click", ()=>setFilter("due"));
+
+  btnLoginGoogle.addEventListener("click", loginGoogle);
+  btnLoginApple.addEventListener("click", loginApple);
+  btnLogout.addEventListener("click", logout);
+
+  btnSyncNow.addEventListener("click", ()=>pushNow("manual"));
+  btnConnect.addEventListener("click", connect);
+  btnDisconnect.addEventListener("click", disconnect);
+  btnClearSync.addEventListener("click", clearSync);
+
+  btnAddReader.addEventListener("click", addReader);
+  btnRemoveReader.addEventListener("click", removeReader);
+
+  deckCodeEl.value = sync.deckCode || "";
+  firebaseConfigEl.value = sync.firebaseConfigText || "";
+  syncModeEl.value = sync.mode || "realtime";
+  setSyncStatus("동기화: OFF");
+
+  if("speechSynthesis" in window){
+    window.speechSynthesis.onvoiceschanged = ()=>{};
+    window.speechSynthesis.getVoices();
+  }
+
+  recomputeView(false);
+
+  // auth listener (only if we can init)
+  if(sync.firebaseConfigText){
+    if(ensureFirebase()){
+      auth.onAuthStateChanged((u)=>{
+        refreshWhoami();
+        if(u && sync.deckCode){ startListening(); }
+        else{ disconnect(); }
+      });
+      refreshWhoami();
+    }
+  }else{
+    refreshWhoami();
+  }
+})();
+</script>
+</body>
+</html>
