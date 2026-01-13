@@ -150,7 +150,7 @@
     <h3>로그인</h3>
     <div class="row">
       <div class="btnRow">
-        <button class="btn primary" id="btnLoginGoogle">Google로 로그인</button>
+        <button class="btn primary" id="btnLoginGoogle" onclick="loginGoogle()">Google로 로그인</button>
         <button class="btn primary" id="btnLoginApple">Apple로 로그인</button>
         <button class="btn" id="btnLogout">로그아웃</button>
       </div>
@@ -1045,7 +1045,11 @@ VICE_ID_KEY = "my_vocab_device_id_secure_v1";
         showToast("로그인 실패 (팝업/리디렉션 모두 실패)");
       }
     }
-  })();
+  }
+
+  // 인라인 onclick에서도 호출될 수 있게 전역에 노출
+  window.loginGoogle = loginGoogle;
+)();
 </script>
 </body>
 </html>
