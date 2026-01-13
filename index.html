@@ -381,7 +381,9 @@ service cloud.firestore {
 (() => {
   const STORAGE_KEY = "my_vocab_deck_secure_v1";
   const SYNC_KEY = "my_vocab_sync_secure_v1";
-  const DEVICE_ID_KEY = "my_vocab_device_id_secure_v1";
+  const DE
+  const DEFAULT_FIREBASE_CONFIG_TEXT = '{\n  "apiKey": "AIzaSyDfaDzzVVnSZT1iOu3DizjC8wyHkc3Clx8",\n  "authDomain": "vocabulary-97ec2.firebaseapp.com",\n  "projectId": "vocabulary-97ec2",\n  "storageBucket": "vocabulary-97ec2.firebasestorage.app",\n  "messagingSenderId": "468601038998",\n  "appId": "1:468601038998:web:f646add36d6a5e1ed43ab7"\n}';
+VICE_ID_KEY = "my_vocab_device_id_secure_v1";
 
   const $ = (id) => document.getElementById(id);
 
@@ -465,6 +467,10 @@ service cloud.firestore {
   const deviceId = getOrCreateDeviceId();
 
   let sync = loadSyncSettings(); // {deckCode, firebaseConfigText, mode}
+  if(!sync.firebaseConfigText || !sync.firebaseConfigText.trim()){
+    sync.firebaseConfigText = DEFAULT_FIREBASE_CONFIG_TEXT;
+    try{ localStorage.setItem(SYNC_KEY, JSON.stringify(sync)); }catch(e){}
+  }
   let firebaseApp=null, auth=null, firestore=null;
   let unsub=null;
   let suppressRemoteApply=false;
@@ -518,7 +524,7 @@ service cloud.firestore {
   function loadSyncSettings(){
     try{
       const raw = localStorage.getItem(SYNC_KEY);
-      if(!raw) return { deckCode:"", firebaseConfigText:"", mode:"realtime" };
+      if(!raw) return { deckCode:"", firebaseConfigText:DEFAULT_FIREBASE_CONFIG_TEXT, mode:"realtime" };
       const p = JSON.parse(raw);
       return {
         deckCode: (p.deckCode ?? "").toString(),
@@ -526,7 +532,7 @@ service cloud.firestore {
         mode: (p.mode==="manual") ? "manual" : "realtime",
       };
     }catch(e){
-      return { deckCode:"", firebaseConfigText:"", mode:"realtime" };
+      return { deckCode:"", firebaseConfigText:DEFAULT_FIREBASE_CONFIG_TEXT, mode:"realtime" };
     }
   }
 
@@ -1095,7 +1101,7 @@ service cloud.firestore {
   btnRemoveReader.addEventListener("click", removeReader);
 
   deckCodeEl.value = sync.deckCode || "";
-  firebaseConfigEl.value = sync.firebaseConfigText || "";
+  firebaseConfigEl.value = (sync.firebaseConfigText && sync.firebaseConfigText.trim()) ? sync.firebaseConfigText : DEFAULT_FIREBASE_CONFIG_TEXT;
   syncModeEl.value = sync.mode || "realtime";
   setSyncStatus("동기화: OFF");
 
