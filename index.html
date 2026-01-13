@@ -833,6 +833,25 @@ VICE_ID_KEY = "my_vocab_device_id_secure_v1";
     }
   }
 
+
+  function isIOS(){
+    const ua = navigator.userAgent || "";
+    return /iPad|iPhone|iPod/.test(ua) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1);
+  }
+
+  async function handleRedirectResultIfAny(){
+    if(!ensureFirebase()) return;
+    try{
+      const res = await auth.getRedirectResult();
+      if(res && res.user){
+        showToast("로그인 완료");
+      }
+    }catch(e){
+      // ignore but log
+      console.warn("getRedirectResult error:", e);
+    }
+  }
+
   function isLoggedIn(){ return !!(auth && auth.currentUser); }
   function isConnected(){ return !!(firestore && unsub && sync.deckCode); }
 
@@ -939,6 +958,9 @@ VICE_ID_KEY = "my_vocab_device_id_secure_v1";
   function disconnect(){
     stopListening();
     setSyncStatus("동기화: OFF");
+
+  // Redirect 로그인 복귀 처리
+  handleRedirectResultIfAny();
     showToast("연결 해제");
     recomputeView(true);
   }
@@ -1000,132 +1022,30 @@ VICE_ID_KEY = "my_vocab_device_id_secure_v1";
     if(!ensureFirebase()) return;
     try{
       const provider = new firebase.auth.GoogleAuthProvider();
+
+      // iOS (Safari/Chrome)에서 팝업 로그인이 무반응/차단되는 경우가 많아서 Redirect 사용
+      if(isIOS()){
+        await auth.signInWithRedirect(provider);
+        return; // 리디렉션되므로 여기서 종료
+      }
+
+      // 데스크탑은 팝업 우선
       await auth.signInWithPopup(provider);
       showToast("Google 로그인 완료");
     }catch(e){
       console.error(e);
-      showToast("로그인 실패");
+
+      // 데스크탑에서도 팝업이 막히면 redirect로 한 번 더 시도
+      try{
+        const provider = new firebase.auth.GoogleAuthProvider();
+        await auth.signInWithRedirect(provider);
+        return;
+      }catch(e2){
+        console.error(e2);
+        showToast("로그인 실패 (팝업/리디렉션 모두 실패)");
+      }
     }
-  }
-
-  async function loginApple(){
-    if(!ensureFirebase()) return;
-    try{
-      const provider = new firebase.auth.OAuthProvider('apple.com');
-      provider.addScope('email');
-      provider.addScope('name');
-      await auth.signInWithPopup(provider);
-      showToast("Apple 로그인 완료");
-    }catch(e){
-      console.error(e);
-      showToast("Apple 로그인 실패(설정/도메인/팝업 제한?)");
-    }
-  }
-
-  async function logout(){
-    if(!ensureFirebase()) return;
-    try{
-      await auth.signOut();
-      disconnect();
-      showToast("로그아웃");
-    }catch(e){
-      console.error(e);
-    }
-  }
-
-  // ----- UI events -----
-  frontSide.addEventListener("click", ()=>{
-    const c = currentCard(); if(!c) return;
-    const now = Date.now();
-    const dt = now - lastTapAt;
-    lastTapAt = now;
-    if(dt > 0 && dt < DOUBLE_TAP_MS){ toggleMeaning(); return; }
-    speak(c.word, c.lang);
-  });
-
-  backSide.addEventListener("click", ()=>{
-    const c = currentCard(); if(!c) return;
-    speak(c.example || c.word, c.lang);
-  });
-
-  btnPrev.addEventListener("click", prev);
-  btnNext.addEventListener("click", next);
-  btnFlip.addEventListener("click", flip);
-  btnStop.addEventListener("click", ()=>{ stopSpeak(); showToast("중지"); });
-
-  const cardArea = document.querySelector(".cardArea");
-  cardArea.addEventListener("touchstart", (e)=>{
-    const t = e.touches[0];
-    touchStartX = t.clientX;
-    touchStartY = t.clientY;
-  }, {passive:true});
-  cardArea.addEventListener("touchend", (e)=>{
-    if(touchStartX==null || touchStartY==null) return;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - touchStartX;
-    const dy = t.clientY - touchStartY;
-    touchStartX=null; touchStartY=null;
-    if(Math.abs(dy) > 60) return;
-    if(dx < -70) next();
-    if(dx > 70) prev();
-  }, {passive:true});
-
-  btnToggleFav.addEventListener("click", toggleFavorite);
-  btnMarkWrong.addEventListener("click", markWrong);
-  btnMarkRight.addEventListener("click", markRight);
-
-  btnAdd.addEventListener("click", addCard);
-  btnLoad.addEventListener("click", loadCurrentIntoInputs);
-  btnUpdate.addEventListener("click", updateCurrentFromInputs);
-  btnDelete.addEventListener("click", deleteCurrent);
-  btnReset.addEventListener("click", resetAll);
-  btnExport.addEventListener("click", exportJSON);
-  btnImport.addEventListener("click", importJSON);
-
-  searchBox.addEventListener("input", ()=>recomputeView(true));
-  fAll.addEventListener("click", ()=>setFilter("all"));
-  fFav.addEventListener("click", ()=>setFilter("fav"));
-  fWrong.addEventListener("click", ()=>setFilter("wrong"));
-  fDue.addEventListener("click", ()=>setFilter("due"));
-
-  btnLoginGoogle.addEventListener("click", loginGoogle);
-  btnLoginApple.addEventListener("click", loginApple);
-  btnLogout.addEventListener("click", logout);
-
-  btnSyncNow.addEventListener("click", ()=>pushNow("manual"));
-  btnConnect.addEventListener("click", connect);
-  btnDisconnect.addEventListener("click", disconnect);
-  btnClearSync.addEventListener("click", clearSync);
-
-  btnAddReader.addEventListener("click", addReader);
-  btnRemoveReader.addEventListener("click", removeReader);
-
-  deckCodeEl.value = sync.deckCode || "";
-  firebaseConfigEl.value = (sync.firebaseConfigText && sync.firebaseConfigText.trim()) ? sync.firebaseConfigText : DEFAULT_FIREBASE_CONFIG_TEXT;
-  syncModeEl.value = sync.mode || "realtime";
-  setSyncStatus("동기화: OFF");
-
-  if("speechSynthesis" in window){
-    window.speechSynthesis.onvoiceschanged = ()=>{};
-    window.speechSynthesis.getVoices();
-  }
-
-  recomputeView(false);
-
-  // auth listener (only if we can init)
-  if(sync.firebaseConfigText){
-    if(ensureFirebase()){
-      auth.onAuthStateChanged((u)=>{
-        refreshWhoami();
-        if(u && sync.deckCode){ startListening(); }
-        else{ disconnect(); }
-      });
-      refreshWhoami();
-    }
-  }else{
-    refreshWhoami();
-  }
-})();
+  })();
 </script>
 </body>
 </html>
