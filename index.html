@@ -125,7 +125,10 @@
     details{margin-top:14px;border-radius:var(--radius);border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);padding:12px 14px;}
     summary{cursor:pointer;font-weight:1100;font-size:18px;-webkit-tap-highlight-color:transparent;}
     pre{white-space:pre-wrap}
-  </style>
+  
+  /* 🔥 클릭 무반응 방지: 버튼 위에 레이어가 덮여도 클릭되게 강제 */
+  #btnLoginGoogle{position:relative;z-index:999999;pointer-events:auto !important;}
+</style>
 </head>
 
 <body>
@@ -383,6 +386,23 @@ service cloud.firestore {
   const SYNC_KEY = "my_vocab_sync_secure_v1";
   const DE
   const DEFAULT_FIREBASE_CONFIG_TEXT = '{\n  "apiKey": "AIzaSyDfaDzzVVnSZT1iOu3DizjC8wyHkc3Clx8",\n  "authDomain": "vocabulary-97ec2.firebaseapp.com",\n  "projectId": "vocabulary-97ec2",\n  "storageBucket": "vocabulary-97ec2.firebasestorage.app",\n  "messagingSenderId": "468601038998",\n  "appId": "1:468601038998:web:f646add36d6a5e1ed43ab7"\n}';
+
+  // ===== DEBUG HELPERS =====
+  const DEBUG_ENABLED = true;
+  function dbg(msg, obj){
+    if(!DEBUG_ENABLED) return;
+    try{
+      const t = new Date().toLocaleTimeString();
+      const el = document.getElementById("debugLog");
+      if(!el) return;
+      let line = `[${t}] ${msg}`;
+      if(obj !== undefined){
+        try{ line += "\n" + JSON.stringify(obj, null, 2); }catch(e){}
+      }
+      el.textContent = line + "\n\n" + el.textContent;
+      console.log("DBG:", msg, obj ?? "");
+    }catch(e){}
+  }
 VICE_ID_KEY = "my_vocab_device_id_secure_v1";
 
   const $ = (id) => document.getElementById(id);
@@ -959,6 +979,11 @@ VICE_ID_KEY = "my_vocab_device_id_secure_v1";
     stopListening();
     setSyncStatus("동기화: OFF");
 
+  const btnClearDebug = document.getElementById("btnClearDebug");
+  if(btnClearDebug){ btnClearDebug.addEventListener("click", ()=>{ const dl=document.getElementById("debugLog"); if(dl) dl.textContent=""; }); }
+
+  dbg("페이지 로드 완료", {url: location.href, ua: navigator.userAgent});
+
   // Redirect 로그인 복귀 처리
   handleRedirectResultIfAny();
     showToast("연결 해제");
@@ -1019,28 +1044,40 @@ VICE_ID_KEY = "my_vocab_device_id_secure_v1";
   }
 
   async function loginGoogle(){
-    if(!ensureFirebase()) return;
+    dbg("loginGoogle() 클릭됨");
+    if(!ensureFirebase()){
+      dbg("ensureFirebase() 실패");
+      return;
+    }
+    dbg("ensureFirebase() 성공", {hasAuth: !!auth, hasFirestore: !!firestore});
+
     try{
       const provider = new firebase.auth.GoogleAuthProvider();
+      dbg("GoogleAuthProvider 생성 OK");
 
-      // iOS (Safari/Chrome)에서 팝업 로그인이 무반응/차단되는 경우가 많아서 Redirect 사용
       if(isIOS()){
+        dbg("iOS 감지 → signInWithRedirect 시작");
         await auth.signInWithRedirect(provider);
-        return; // 리디렉션되므로 여기서 종료
+        dbg("signInWithRedirect 호출됨 (정상이라면 화면 이동)");
+        return;
       }
 
-      // 데스크탑은 팝업 우선
+      dbg("Desktop → signInWithPopup 시작");
       await auth.signInWithPopup(provider);
+      dbg("signInWithPopup 성공", {uid: auth.currentUser?.uid || null});
       showToast("Google 로그인 완료");
     }catch(e){
+      dbg("loginGoogle 예외", {code: e?.code, message: e?.message, name: e?.name});
       console.error(e);
 
-      // 데스크탑에서도 팝업이 막히면 redirect로 한 번 더 시도
       try{
         const provider = new firebase.auth.GoogleAuthProvider();
+        dbg("popup 실패 → redirect 재시도");
         await auth.signInWithRedirect(provider);
+        dbg("redirect 재시도 호출됨");
         return;
       }catch(e2){
+        dbg("redirect도 실패", {code: e2?.code, message: e2?.message, name: e2?.name});
         console.error(e2);
         showToast("로그인 실패 (팝업/리디렉션 모두 실패)");
       }
@@ -1051,5 +1088,18 @@ VICE_ID_KEY = "my_vocab_device_id_secure_v1";
   window.loginGoogle = loginGoogle;
 )();
 </script>
+
+  <!-- DEBUG PANEL -->
+  <div id="debugPanel" style="position:fixed;left:12px;right:12px;bottom:12px;max-height:35vh;overflow:auto;
+    background:rgba(0,0,0,0.85);color:#fff;padding:12px;border-radius:14px;z-index:9999999;font-size:12px;line-height:1.35;">
+    <div style="display:flex;gap:8px;align-items:center;justify-content:space-between;">
+      <b>DEBUG</b>
+      <button id="btnClearDebug" style="background:#fff;color:#000;border:0;border-radius:10px;padding:6px 10px;font-weight:700;">
+        Clear
+      </button>
+    </div>
+    <div id="debugLog" style="margin-top:8px;white-space:pre-wrap;"></div>
+  </div>
+
 </body>
 </html>
