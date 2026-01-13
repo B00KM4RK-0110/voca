@@ -1,4 +1,4 @@
-\<!doctype html>
+<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
@@ -825,8 +825,6 @@ VICE_ID_KEY = "my_vocab_device_id_secure_v1";
       firebaseApp = firebase.initializeApp(cfg);
       auth = firebase.auth(firebaseApp);
       firestore = firebase.firestore(firebaseApp);
-      // iOS/Safari: redirect 로그인 결과가 있으면 여기서 복구
-      try{ await auth.getRedirectResult(); }catch(e){}
       auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
       return true;
     }catch(e){
@@ -1002,13 +1000,7 @@ VICE_ID_KEY = "my_vocab_device_id_secure_v1";
     if(!ensureFirebase()) return;
     try{
       const provider = new firebase.auth.GoogleAuthProvider();
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-      if(isIOS){
-        await auth.signInWithRedirect(provider);
-        return;
-      }else{
-        await auth.signInWithPopup(provider);
-      }
+      await auth.signInWithPopup(provider);
       showToast("Google 로그인 완료");
     }catch(e){
       console.error(e);
@@ -1022,13 +1014,7 @@ VICE_ID_KEY = "my_vocab_device_id_secure_v1";
       const provider = new firebase.auth.OAuthProvider('apple.com');
       provider.addScope('email');
       provider.addScope('name');
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-      if(isIOS){
-        await auth.signInWithRedirect(provider);
-        return;
-      }else{
-        await auth.signInWithPopup(provider);
-      }
+      await auth.signInWithPopup(provider);
       showToast("Apple 로그인 완료");
     }catch(e){
       console.error(e);
