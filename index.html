@@ -125,10 +125,7 @@
     details{margin-top:14px;border-radius:var(--radius);border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);padding:12px 14px;}
     summary{cursor:pointer;font-weight:1100;font-size:18px;-webkit-tap-highlight-color:transparent;}
     pre{white-space:pre-wrap}
-  
-  /* 🔥 클릭 무반응 방지: 버튼 위에 레이어가 덮여도 클릭되게 강제 */
-  #btnLoginGoogle{position:relative;z-index:999999;pointer-events:auto !important;}
-</style>
+  </style>
 </head>
 
 <body>
@@ -153,7 +150,7 @@
     <h3>로그인</h3>
     <div class="row">
       <div class="btnRow">
-        <button class="btn primary" id="btnLoginGoogle" onclick="loginGoogle()">Google로 로그인</button>
+        <button class="btn primary" id="btnLoginGoogle">Google로 로그인</button>
         <button class="btn primary" id="btnLoginApple">Apple로 로그인</button>
         <button class="btn" id="btnLogout">로그아웃</button>
       </div>
@@ -386,23 +383,6 @@ service cloud.firestore {
   const SYNC_KEY = "my_vocab_sync_secure_v1";
   const DE
   const DEFAULT_FIREBASE_CONFIG_TEXT = '{\n  "apiKey": "AIzaSyDfaDzzVVnSZT1iOu3DizjC8wyHkc3Clx8",\n  "authDomain": "vocabulary-97ec2.firebaseapp.com",\n  "projectId": "vocabulary-97ec2",\n  "storageBucket": "vocabulary-97ec2.firebasestorage.app",\n  "messagingSenderId": "468601038998",\n  "appId": "1:468601038998:web:f646add36d6a5e1ed43ab7"\n}';
-
-  // ===== DEBUG HELPERS =====
-  const DEBUG_ENABLED = true;
-  function dbg(msg, obj){
-    if(!DEBUG_ENABLED) return;
-    try{
-      const t = new Date().toLocaleTimeString();
-      const el = document.getElementById("debugLog");
-      if(!el) return;
-      let line = `[${t}] ${msg}`;
-      if(obj !== undefined){
-        try{ line += "\n" + JSON.stringify(obj, null, 2); }catch(e){}
-      }
-      el.textContent = line + "\n\n" + el.textContent;
-      console.log("DBG:", msg, obj ?? "");
-    }catch(e){}
-  }
 VICE_ID_KEY = "my_vocab_device_id_secure_v1";
 
   const $ = (id) => document.getElementById(id);
@@ -853,25 +833,6 @@ VICE_ID_KEY = "my_vocab_device_id_secure_v1";
     }
   }
 
-
-  function isIOS(){
-    const ua = navigator.userAgent || "";
-    return /iPad|iPhone|iPod/.test(ua) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1);
-  }
-
-  async function handleRedirectResultIfAny(){
-    if(!ensureFirebase()) return;
-    try{
-      const res = await auth.getRedirectResult();
-      if(res && res.user){
-        showToast("로그인 완료");
-      }
-    }catch(e){
-      // ignore but log
-      console.warn("getRedirectResult error:", e);
-    }
-  }
-
   function isLoggedIn(){ return !!(auth && auth.currentUser); }
   function isConnected(){ return !!(firestore && unsub && sync.deckCode); }
 
@@ -978,14 +939,6 @@ VICE_ID_KEY = "my_vocab_device_id_secure_v1";
   function disconnect(){
     stopListening();
     setSyncStatus("동기화: OFF");
-
-  const btnClearDebug = document.getElementById("btnClearDebug");
-  if(btnClearDebug){ btnClearDebug.addEventListener("click", ()=>{ const dl=document.getElementById("debugLog"); if(dl) dl.textContent=""; }); }
-
-  dbg("페이지 로드 완료", {url: location.href, ua: navigator.userAgent});
-
-  // Redirect 로그인 복귀 처리
-  handleRedirectResultIfAny();
     showToast("연결 해제");
     recomputeView(true);
   }
@@ -1044,62 +997,135 @@ VICE_ID_KEY = "my_vocab_device_id_secure_v1";
   }
 
   async function loginGoogle(){
-    dbg("loginGoogle() 클릭됨");
-    if(!ensureFirebase()){
-      dbg("ensureFirebase() 실패");
-      return;
-    }
-    dbg("ensureFirebase() 성공", {hasAuth: !!auth, hasFirestore: !!firestore});
-
+    if(!ensureFirebase()) return;
     try{
       const provider = new firebase.auth.GoogleAuthProvider();
-      dbg("GoogleAuthProvider 생성 OK");
-
-      if(isIOS()){
-        dbg("iOS 감지 → signInWithRedirect 시작");
-        await auth.signInWithRedirect(provider);
-        dbg("signInWithRedirect 호출됨 (정상이라면 화면 이동)");
-        return;
-      }
-
-      dbg("Desktop → signInWithPopup 시작");
       await auth.signInWithPopup(provider);
-      dbg("signInWithPopup 성공", {uid: auth.currentUser?.uid || null});
       showToast("Google 로그인 완료");
     }catch(e){
-      dbg("loginGoogle 예외", {code: e?.code, message: e?.message, name: e?.name});
       console.error(e);
-
-      try{
-        const provider = new firebase.auth.GoogleAuthProvider();
-        dbg("popup 실패 → redirect 재시도");
-        await auth.signInWithRedirect(provider);
-        dbg("redirect 재시도 호출됨");
-        return;
-      }catch(e2){
-        dbg("redirect도 실패", {code: e2?.code, message: e2?.message, name: e2?.name});
-        console.error(e2);
-        showToast("로그인 실패 (팝업/리디렉션 모두 실패)");
-      }
+      showToast("로그인 실패");
     }
   }
 
-  // 인라인 onclick에서도 호출될 수 있게 전역에 노출
-  window.loginGoogle = loginGoogle;
-)();
+  async function loginApple(){
+    if(!ensureFirebase()) return;
+    try{
+      const provider = new firebase.auth.OAuthProvider('apple.com');
+      provider.addScope('email');
+      provider.addScope('name');
+      await auth.signInWithPopup(provider);
+      showToast("Apple 로그인 완료");
+    }catch(e){
+      console.error(e);
+      showToast("Apple 로그인 실패(설정/도메인/팝업 제한?)");
+    }
+  }
+
+  async function logout(){
+    if(!ensureFirebase()) return;
+    try{
+      await auth.signOut();
+      disconnect();
+      showToast("로그아웃");
+    }catch(e){
+      console.error(e);
+    }
+  }
+
+  // ----- UI events -----
+  frontSide.addEventListener("click", ()=>{
+    const c = currentCard(); if(!c) return;
+    const now = Date.now();
+    const dt = now - lastTapAt;
+    lastTapAt = now;
+    if(dt > 0 && dt < DOUBLE_TAP_MS){ toggleMeaning(); return; }
+    speak(c.word, c.lang);
+  });
+
+  backSide.addEventListener("click", ()=>{
+    const c = currentCard(); if(!c) return;
+    speak(c.example || c.word, c.lang);
+  });
+
+  btnPrev.addEventListener("click", prev);
+  btnNext.addEventListener("click", next);
+  btnFlip.addEventListener("click", flip);
+  btnStop.addEventListener("click", ()=>{ stopSpeak(); showToast("중지"); });
+
+  const cardArea = document.querySelector(".cardArea");
+  cardArea.addEventListener("touchstart", (e)=>{
+    const t = e.touches[0];
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+  }, {passive:true});
+  cardArea.addEventListener("touchend", (e)=>{
+    if(touchStartX==null || touchStartY==null) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+    touchStartX=null; touchStartY=null;
+    if(Math.abs(dy) > 60) return;
+    if(dx < -70) next();
+    if(dx > 70) prev();
+  }, {passive:true});
+
+  btnToggleFav.addEventListener("click", toggleFavorite);
+  btnMarkWrong.addEventListener("click", markWrong);
+  btnMarkRight.addEventListener("click", markRight);
+
+  btnAdd.addEventListener("click", addCard);
+  btnLoad.addEventListener("click", loadCurrentIntoInputs);
+  btnUpdate.addEventListener("click", updateCurrentFromInputs);
+  btnDelete.addEventListener("click", deleteCurrent);
+  btnReset.addEventListener("click", resetAll);
+  btnExport.addEventListener("click", exportJSON);
+  btnImport.addEventListener("click", importJSON);
+
+  searchBox.addEventListener("input", ()=>recomputeView(true));
+  fAll.addEventListener("click", ()=>setFilter("all"));
+  fFav.addEventListener("click", ()=>setFilter("fav"));
+  fWrong.addEventListener("click", ()=>setFilter("wrong"));
+  fDue.addEventListener("click", ()=>setFilter("due"));
+
+  btnLoginGoogle.addEventListener("click", loginGoogle);
+  btnLoginApple.addEventListener("click", loginApple);
+  btnLogout.addEventListener("click", logout);
+
+  btnSyncNow.addEventListener("click", ()=>pushNow("manual"));
+  btnConnect.addEventListener("click", connect);
+  btnDisconnect.addEventListener("click", disconnect);
+  btnClearSync.addEventListener("click", clearSync);
+
+  btnAddReader.addEventListener("click", addReader);
+  btnRemoveReader.addEventListener("click", removeReader);
+
+  deckCodeEl.value = sync.deckCode || "";
+  firebaseConfigEl.value = (sync.firebaseConfigText && sync.firebaseConfigText.trim()) ? sync.firebaseConfigText : DEFAULT_FIREBASE_CONFIG_TEXT;
+  syncModeEl.value = sync.mode || "realtime";
+  setSyncStatus("동기화: OFF");
+
+  if("speechSynthesis" in window){
+    window.speechSynthesis.onvoiceschanged = ()=>{};
+    window.speechSynthesis.getVoices();
+  }
+
+  recomputeView(false);
+
+  // auth listener (only if we can init)
+  if(sync.firebaseConfigText){
+    if(ensureFirebase()){
+      auth.onAuthStateChanged((u)=>{
+        refreshWhoami();
+        if(u && sync.deckCode){ startListening(); }
+        else{ disconnect(); }
+      });
+      refreshWhoami();
+    }
+  }else{
+    refreshWhoami();
+  }
+})();
 </script>
-
-  <!-- DEBUG PANEL -->
-  <div id="debugPanel" style="position:fixed;left:12px;right:12px;bottom:12px;max-height:35vh;overflow:auto;
-    background:rgba(0,0,0,0.85);color:#fff;padding:12px;border-radius:14px;z-index:9999999;font-size:12px;line-height:1.35;">
-    <div style="display:flex;gap:8px;align-items:center;justify-content:space-between;">
-      <b>DEBUG</b>
-      <button id="btnClearDebug" style="background:#fff;color:#000;border:0;border-radius:10px;padding:6px 10px;font-weight:700;">
-        Clear
-      </button>
-    </div>
-    <div id="debugLog" style="margin-top:8px;white-space:pre-wrap;"></div>
-  </div>
-
 </body>
 </html>
